@@ -28,6 +28,8 @@ class History(object):
     if not os.path.lexists(os.path.join(self.metadir, '.git')):
       print "Initializing snapshot directory '%s'..." % self.metadir
       self._git('init')
+      self._git('config', '--add', 'gc.auto', '1000')
+      self._git('config', '--add', 'pack.packSizeLimit', '1m')
     if not os.path.isdir(os.path.join(self.metadir, '.git')):
       raise Exception("History repository exists but is not a valid git repository: '%s'" \
           % self.metadir)
@@ -37,3 +39,4 @@ class History(object):
 
   def commit(self):
     self._git('commit', '-a', '-F', '/dev/null', '--allow-empty-message')
+    self._git('gc', '--auto')
