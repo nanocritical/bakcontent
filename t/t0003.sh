@@ -23,4 +23,4 @@ touch f
 ../../bakcontent store .
 
 cd ..
-rm -r tmp_$test
+rm -rf tmp_$test

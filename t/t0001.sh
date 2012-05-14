@@ -19,4 +19,4 @@ touch e/.bakcontent_donotbackup
 ../../bakcontent backup .
 
 cd ..
-rm -r tmp_$test
+rm -rf tmp_$test

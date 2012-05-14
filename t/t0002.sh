@@ -20,4 +20,4 @@ if ../../bakcontent backup . &> /dev/null; then
 fi
 
 cd ..
-rm -r tmp_$test
+rm -rf tmp_$test
