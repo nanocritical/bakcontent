@@ -1,0 +1,9 @@
+#!/bin/bash
+
+for t in t/t*.sh; do
+  if ! ./$t; then
+    err=$?
+    echo "FAILED $t"
+    exit $err
+  fi
+done
