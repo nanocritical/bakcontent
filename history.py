@@ -1,16 +1,8 @@
 import os
 import os.path
 import subprocess
-import contextlib
 
-@contextlib.contextmanager
-def wd(path):
-  saved = os.getcwd()
-  try:
-    os.chdir(path)
-    yield
-  finally:
-    os.chdir(saved)
+import helpers
 
 class History(object):
   def __init__(self, metadir):
@@ -19,7 +11,7 @@ class History(object):
 
   def _git(self, *args):
     assert len(args) > 0
-    with wd(self.metadir):
+    with helpers.cwd(self.metadir):
       subprocess.check_call(['git'] + list(args))
 
   def _prepare_dir(self):
