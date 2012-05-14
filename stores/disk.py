@@ -11,6 +11,7 @@ class Disk(object):
 
   def _prepare_dir(self):
     if not os.path.isdir(self.contentdir):
+      print "Initializing content directory '%s'..." % self.contentdir
       os.makedirs(self.contentdir)
       for prefix in range(256):
         os.makedirs(os.path.join(self.contentdir, "%02x" % prefix))

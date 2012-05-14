@@ -26,6 +26,7 @@ class History(object):
     if not os.path.isdir(self.metadir):
       os.makedirs(self.metadir)
     if not os.path.lexists(os.path.join(self.metadir, '.git')):
+      print "Initializing snapshot directory '%s'..." % self.metadir
       self._git('init')
     if not os.path.isdir(os.path.join(self.metadir, '.git')):
       raise Exception("History repository exists but is not a valid git repository: '%s'" \

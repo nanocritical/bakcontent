@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import re
 import os
 import os.path
 import sys
@@ -8,6 +9,7 @@ import tempfile
 import subprocess
 import socket
 import errno
+import getopt
 
 import history
 import stores.disk
@@ -24,12 +26,10 @@ import stores.disk
 # BACKUP = SNAPSHOT + STORE
 
 
-BAKPREFIX = '.bakcontent_'
-TMP_BAKPREFIX = BAKPREFIX + 'data_'
-TMP_NO_HASH_BAKPREFIX = BAKPREFIX + 'tmp_'
-HISTORY_PATH = BAKPREFIX + 'history'
-STORE_PATH = BAKPREFIX + 'store'
-DO_NOT_BACKUP = BAKPREFIX + 'donotbackup'
+BAKPREFIX = '.bakcontent'
+TMP_BAKPREFIX = BAKPREFIX + '_'
+TMP_NO_HASH_BAKPREFIX = BAKPREFIX + '_tmp_'
+DO_NOT_BACKUP = BAKPREFIX + '_donotbackup'
 
 g_hostname, g_full_hostname = socket.gethostname(), socket.getfqdn()
 
@@ -92,12 +92,19 @@ class Snap(object):
     self.h = h
     self.tmp_cfn = tmp_cfn
 
+  @classmethod
+  def from_content_tmp_only(cls, tmp_cfn):
+    bn = os.path.basename(tmp_cfn)
+    assert bn.startswith(TMP_BAKPREFIX)
+    h = re.sub(r'^' + TMP_BAKPREFIX, '', bn)
+    return cls(None, h, tmp_cfn)
+
 def snapshot_file(hist, basedir, fn):
   tmp_cfn, h = create_content_tmp(basedir, fn)
   create_meta(hist, fn, h, tmp_cfn)
   return Snap(fn, h, tmp_cfn)
 
-def backup_multiple_files(store, hist, basedir, fns):
+def snapshot_multiple_files(hist, basedir, fns):
   snaps = []
   for fn in fns:
     snaps.append(snapshot_file(hist, basedir, fn))
@@ -106,10 +113,21 @@ def backup_multiple_files(store, hist, basedir, fns):
     hist.add_meta(snap.fn)
   hist.commit()
 
+  return snaps
+
+def store_multiple_files(store, basedir, fns):
+  snaps = map(Snap.from_content_tmp_only, fns)
+
   for snap in snaps:
     store.save_content(snap.h, snap.tmp_cfn)
 
-def gather_all_files(basedir, _dest=None):
+def backup_multiple_files(store, hist, basedir, fns):
+  snaps = snapshot_multiple_files(hist, basedir, fns)
+
+  for snap in snaps:
+    store.save_content(snap.h, snap.tmp_cfn)
+
+def gather_all_files(basedir, filter=None, _dest=None):
   if not os.path.isdir(basedir):
     raise Exception("Argument '%s' is not a directory" % e)
   if os.path.isfile(os.path.join(basedir, DO_NOT_BACKUP)):
@@ -120,42 +138,71 @@ def gather_all_files(basedir, _dest=None):
     if os.path.isfile(os.path.join(root, DO_NOT_BACKUP)):
       continue
 
-    d = os.path.relpath(root, basedir)
+    relroot = os.path.relpath(root, basedir)
     for f in files:
-      full = os.path.join(d, f)
-      if os.path.basename(full).startswith(BAKPREFIX):
-        continue
-      fns.append(full)
+      full = os.path.join(relroot, f)
+      if filter is None or filter(basedir, full):
+        fns.append(full)
 
     try:
-      dirs.remove(HISTORY_PATH)
-    except ValueError:
-      pass
-    try:
-      dirs.remove(STORE_PATH)
+      dirs.remove(BAKPREFIX)
     except ValueError:
       pass
   return fns
 
-def command(cmd, args):
+def filter_out_bakcontent_files(basedir, fn):
+  return not fn.startswith(BAKPREFIX)
+
+def filter_content_tmp(basedir, fn):
+  return os.path.basename(fn).startswith(TMP_BAKPREFIX)
+
+def command(cmd, args, **kw):
   if cmd == 'backup':
     assert len(args) == 1 and os.path.isdir(args[0])  # Only support backing up one dir recursively for now.
 
     basedir = args[0]
-    store = stores.disk.Disk(os.path.join(basedir, STORE_PATH))
-    hist = history.History(os.path.join(basedir, HISTORY_PATH))
+    hist = history.History(os.path.join(basedir, BAKPREFIX, 'history'))
+    store = stores.disk.Disk(os.path.join(basedir, BAKPREFIX, 'content'))
 
-    fns = gather_all_files(basedir)
+    fns = gather_all_files(basedir, filter=filter_out_bakcontent_files)
     backup_multiple_files(store, hist, basedir, fns)
+
+  elif cmd == 'snapshot':
+    assert len(args) == 1 and os.path.isdir(args[0])  # Only support backing up one dir recursively for now.
+
+    basedir = args[0]
+    hist = history.History(os.path.join(basedir, BAKPREFIX, 'history'))
+
+    fns = gather_all_files(basedir, filter=filter_out_bakcontent_files)
+    snapshot_multiple_files(hist, basedir, fns)
+
+  elif cmd == 'store':
+    assert len(args) == 1 and os.path.isdir(args[0])  # Only support backing up one dir recursively for now.
+
+    basedir = args[0]
+    store = stores.disk.Disk(os.path.join(basedir, BAKPREFIX, 'content'))
+
+    fns = gather_all_files(basedir, filter=filter_content_tmp)
+    store_multiple_files(store, basedir, fns)
 
   else:
     print '''Usage: %s <cmd> args...
 Commands:
-  backup <directory>
+  backup [--store <backing_store>] <directory>
+        Snapshot and store <directory>.
+  snapshot <directory>
+        Snapshot <directory>.
+  store [--store <backing_store>] <directory>
+        Push the snapshots in <directory> to the backing store.
   help
+        This message.
 ''' % sys.argv[0]
 
-if len(sys.argv) == 1:
-  sys.exit(command('help', []))
-else:
-  sys.exit(command(sys.argv[1], sys.argv[2:]))
+
+if __name__ == '__main__':
+  if len(sys.argv) == 1:
+    sys.exit(command('help', []))
+  else:
+    cmd = sys.argv[1]
+    opts, args = getopt.getopt(sys.argv[2:], None, ['store='])
+    sys.exit(command(cmd, args, **dict(opts)))
