@@ -1,0 +1,161 @@
+#!/usr/bin/python
+
+import os
+import os.path
+import sys
+import shutil
+import tempfile
+import subprocess
+import socket
+import errno
+
+import history
+import stores.disk
+
+# SNAPSHOT
+# - Create content temporary copy in same directory to avoid races if original modified later.
+# - Compute hash.
+# - Rename content temporary using the hash (still in same dir).
+# - Commit metadata.
+
+# STORE
+# - Then copy content to backing store.
+
+# BACKUP = SNAPSHOT + STORE
+
+
+BAKPREFIX = '.bakcontent_'
+TMP_BAKPREFIX = BAKPREFIX + 'data_'
+TMP_NO_HASH_BAKPREFIX = BAKPREFIX + 'tmp_'
+HISTORY_PATH = BAKPREFIX + 'history'
+STORE_PATH = BAKPREFIX + 'store'
+DO_NOT_BACKUP = BAKPREFIX + 'donotbackup'
+
+g_hostname, g_full_hostname = socket.gethostname(), socket.getfqdn()
+
+def create_content_tmp(basedir, filename):
+  '''Copy to a temporary name first, to avoid any races.'''
+  fn = os.path.join(basedir, filename)
+  content, tmp_cfn = tempfile.mkstemp(prefix=TMP_NO_HASH_BAKPREFIX, dir=os.path.dirname(fn))
+
+  content = os.fdopen(content)
+
+  if os.path.islink(fn):
+    with content:
+      content.write(unicode(os.readlink(fn)))
+  else:
+    content.close()
+    shutil.copy2(fn, tmp_cfn)
+
+  h = subprocess.check_output(['md5sum', tmp_cfn]).split()[0]
+
+  h_tmp_cfn = os.path.join(os.path.dirname(fn), TMP_BAKPREFIX + h)
+  # Not moved to the backing store yet, even if it were local,
+  # because it could be slow if the store is not on the same
+  # partition, say.
+  os.rename(tmp_cfn, h_tmp_cfn)
+
+  return h_tmp_cfn, h
+
+def stat_list(cfn):
+  r = []
+  s = os.stat(cfn)
+  # We store the size to facilitate integrity checks.
+  for st in 'st_size st_mode st_uid st_gid st_atime st_mtime st_ctime'.split():
+    r.append(str(getattr(s, st)))
+  return r
+
+def meta_fn(hist, fn):
+  return os.path.join(hist.metadir, fn)
+
+def write_meta(m, h, sl):
+  m.write(h + '\n')
+  m.write(' '.join(sl) + '\n')
+  m.write(g_hostname + ' ' + g_full_hostname + '\n')
+
+def create_meta(hist, fn, h, tmp_cfn):
+  mfn = meta_fn(hist, fn)
+  try:
+    os.makedirs(os.path.dirname(mfn))
+  except OSError, e:
+    if e.errno != errno.EEXIST:
+      raise e
+
+  with open(mfn, 'w') as m:
+    write_meta(m, h, stat_list(tmp_cfn))
+
+  shutil.copystat(tmp_cfn, mfn)
+
+class Snap(object):
+  def __init__(self, fn, h, tmp_cfn):
+    self.fn = fn
+    self.h = h
+    self.tmp_cfn = tmp_cfn
+
+def snapshot_file(hist, basedir, fn):
+  tmp_cfn, h = create_content_tmp(basedir, fn)
+  create_meta(hist, fn, h, tmp_cfn)
+  return Snap(fn, h, tmp_cfn)
+
+def backup_multiple_files(store, hist, basedir, fns):
+  snaps = []
+  for fn in fns:
+    snaps.append(snapshot_file(hist, basedir, fn))
+
+  for snap in snaps:
+    hist.add_meta(snap.fn)
+  hist.commit()
+
+  for snap in snaps:
+    store.save_content(snap.h, snap.tmp_cfn)
+
+def gather_all_files(basedir, _dest=None):
+  if not os.path.isdir(basedir):
+    raise Exception("Argument '%s' is not a directory" % e)
+  if os.path.isfile(os.path.join(basedir, DO_NOT_BACKUP)):
+    raise Exception("Directory '%s' is marked with file '%s'" % (basedir, DO_NOT_BACKUP))
+
+  fns = _dest or []
+  for root, dirs, files in os.walk(basedir):
+    if os.path.isfile(os.path.join(root, DO_NOT_BACKUP)):
+      continue
+
+    d = os.path.relpath(root, basedir)
+    for f in files:
+      full = os.path.join(d, f)
+      if os.path.basename(full).startswith(BAKPREFIX):
+        continue
+      fns.append(full)
+
+    try:
+      dirs.remove(HISTORY_PATH)
+    except ValueError:
+      pass
+    try:
+      dirs.remove(STORE_PATH)
+    except ValueError:
+      pass
+  return fns
+
+def command(cmd, args):
+  if cmd == 'backup':
+    assert len(args) == 1 and os.path.isdir(args[0])  # Only support backing up one dir recursively for now.
+
+    basedir = args[0]
+    store = stores.disk.Disk(os.path.join(basedir, STORE_PATH))
+    hist = history.History(os.path.join(basedir, HISTORY_PATH))
+
+    fns = gather_all_files(basedir)
+    backup_multiple_files(store, hist, basedir, fns)
+
+  else:
+    print '''Usage: %s <cmd> args...
+Commands:
+  backup <directory>
+  help
+''' % sys.argv[0]
+
+if len(sys.argv) == 1:
+  sys.exit(command('help', []))
+else:
+  sys.exit(command(sys.argv[1], sys.argv[2:]))
