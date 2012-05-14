@@ -11,6 +11,7 @@ import socket
 import errno
 import getopt
 
+import entropy
 import history
 import stores.disk
 
@@ -55,6 +56,12 @@ def create_content_tmp(basedir, filename):
   # partition, say.
   os.rename(tmp_cfn, h_tmp_cfn)
 
+  if entropy.is_worth_deflating(basedir, h_tmp_cfn):
+    # -n to not record name/attributes in the gzip file: would make it
+    # impossible to compare .gz content files without decompressing.
+    subprocess.check_call(['gzip', '-n', h_tmp_cfn])
+    h_tmp_cfn += '.gz'
+
   return h_tmp_cfn, h
 
 def stat_list(cfn):
@@ -94,7 +101,7 @@ class Snap(object):
 
   @classmethod
   def from_content_tmp_only(cls, tmp_cfn):
-    bn = os.path.basename(tmp_cfn)
+    bn = os.path.splitext(os.path.basename(tmp_cfn))[0]
     assert bn.startswith(TMP_BAKPREFIX)
     h = re.sub(r'^' + TMP_BAKPREFIX, '', bn)
     return cls(None, h, tmp_cfn)
