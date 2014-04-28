@@ -169,12 +169,25 @@ def store_sync(bakdir, args):
     argparser = argparse.ArgumentParser(prog="%s store sync" % sys.argv[0])
     argparser.add_argument('name', nargs='?', default='default',
             help='store name')
+    argparser.add_argument('--all', action='store_true',
+            help='sync over all stores')
     cmdargs = argparser.parse_args(args)
 
     bakdir = os.path.realpath(bakdir)
-    e = shell("bakcontent-do '%s' store-sync %s" % (bakdir, cmdargs.name))
-    if e:
-        exit(e)
+
+    if not cmdargs.all:
+        stores = [cmdargs.name]
+    else:
+        stores = []
+        with pushdir(bakdir):
+            for sfn in glob.glob('stores/*'):
+                with open(sfn) as f:
+                    stores.append(os.path.basename(sfn))
+
+    for store in stores:
+        e = shell("bakcontent-do '%s' store-sync %s" % (bakdir, store))
+        if e:
+            exit(e)
 
 def store(args):
     argparser = argparse.ArgumentParser(prog="%s store" % sys.argv[0],
@@ -187,14 +200,19 @@ def store(args):
             help='sync command (defaults to sync)')
     argparser.add_argument('args', nargs='*',
             help="cmd arguments (try '-h')")
+    argparser.add_argument('--all', action='store_true',
+            help=argparse.SUPPRESS)
     cmdargs = argparser.parse_args(args)
 
     if sys.argv[2] in ['-h', '--help']:
         argparser.print_help()
         exit(0)
 
-    bakdir = args_parse_dirs(cmdargs)
-    further_args = cmdargs.args
+    if not cmdargs.h:
+        bakdir = args_parse_dirs(cmdargs)
+    further_args = cmdargs.args \
+            + (['-h'] if cmdargs.h else []) \
+            + (['--all'] if cmdargs.all else [])
 
     if cmdargs.store_cmd == 'sync':
         store_sync(bakdir, further_args)
