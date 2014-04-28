@@ -32,7 +32,7 @@ rootdir = get_rootdir(bakdir)
 if cmd == 'snapshot':
     histdir = os.path.join(bakdir, 'history')
     with pushdir(histdir):
-        e = shell("git rm -rf --ignore-unmatch *")
+        e = shell("git rm -rf --ignore-unmatch * > /dev/null")
         if e:
             exit(e)
 
@@ -85,10 +85,10 @@ for pr in procs:
 if cmd == 'snapshot':
     histdir = os.path.join(bakdir, 'history')
     with pushdir(histdir):
-        e = shell("git add -A")
+        e = shell("git add -A > /dev/null")
         if e:
             exit(e)
-        shell("git commit -m.")
+        shell("git commit -m. > /dev/null")
         if e:
             exit(e)
 elif cmd == 'store-sync':

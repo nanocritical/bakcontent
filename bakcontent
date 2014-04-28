@@ -103,13 +103,13 @@ def register(args):
     if not os.path.isdir(histdir):
         os.makedirs(histdir)
         with pushdir(histdir):
-            e = shell('git init')
+            e = shell('git init > /dev/null')
             if e:
                 exit(e)
-            e = shell('git config --add gc.auto 1000')
+            e = shell('git config --add gc.auto 1000 > /dev/null')
             if e:
                 exit(e)
-            e = shell('git config --add pack.packSizeLimit 1m')
+            e = shell('git config --add pack.packSizeLimit 1m > /dev/null')
             if e:
                 exit(e)
 
