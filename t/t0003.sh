@@ -1,26 +1,30 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 cd $(dirname $0)
-test=$(basename $0)
-
-mkdir -p tmp_$test
-cd tmp_$test
+. setup.sh 
 
 echo 1 > a
 echo 2 > b
 echo 3 > c
+
 mkdir -p d
 cp a b c d
 
 mkdir -p e
 cp a b c e
-touch e/.bakcontent_donotbackup
 
-../../bakcontent snapshot .
-touch f
-../../bakcontent store .
-../../bakcontent snapshot .
-../../bakcontent store .
+bakcontent register
+bakcontent snapshot
 
-cd ..
-rm -rf tmp_$test
+rm a
+mkdir a
+touch a/aa
+
+bakcontent snapshot
+bakcontent unregister
+
+bakcontent register
+bakcontent store add store1 .bakcontent/content
+bakcontent store add store2 .bakcontent
+
+teardown

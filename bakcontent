@@ -1,215 +1,221 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 
-import re
+import sys
 import os
 import os.path
-import sys
-import shutil
-import tempfile
-import subprocess
-import socket
 import errno
-import getopt
+import argparse
+import glob
+from common import *
 
-import entropy
-import history
-import stores.disk
+# bakcontent-store-server: Store (server)
+# - After transfer, check FRESH files have correct md5. Move to correct md5 name to
+# FINAL store. It's not an error when it happens on freshly transferred files,
+# as the client does not protect against races (write-while-uploading). It's a
+# storage error if such a discrepancy is discoverd on known-good md5.
 
-# SNAPSHOT
-# - Create content temporary copy in same directory to avoid races if original modified later.
-# - Compute hash.
-# - Rename content temporary using the hash (still in same dir).
-# - Commit metadata.
+def global_register(bakdir):
+    bakdir = os.path.realpath(bakdir)
 
-# STORE
-# - Then copy content to backing store.
+    rcdir = os.path.join(os.path.expanduser('~'), '.bakcontentrc')
+    trymakedirs(rcdir)
 
-# BACKUP = SNAPSHOT + STORE
+    with pushdir(rcdir):
+        paths = set()
+        try:
+            with open('list') as f:
+                paths = set(f.read().strip().split())
+        except:
+            pass
 
+        if bakdir in paths:
+            return
+        paths.add(bakdir)
 
-BAKPREFIX = '.bakcontent'
-TMP_BAKPREFIX = BAKPREFIX + '_'
-TMP_NO_HASH_BAKPREFIX = BAKPREFIX + '_tmp_'
-DO_NOT_BACKUP = BAKPREFIX + '_donotbackup'
+        with atomicopenw('list') as f:
+            f.write('\n'.join(paths) + '\n')
 
-g_hostname, g_full_hostname = socket.gethostname(), socket.getfqdn()
+        with open('list') as f:
+            paths = set(f.readlines())
+        if bakdir not in paths:
+            # Retry.
+            global_register(bakdir)
 
-def create_content_tmp(basedir, filename):
-  '''Copy to a temporary name first, to avoid any races.'''
-  fn = os.path.join(basedir, filename)
-  content, tmp_cfn = tempfile.mkstemp(prefix=TMP_NO_HASH_BAKPREFIX, dir=os.path.dirname(fn))
+def global_unregister(bakdir):
+    bakdir = os.path.realpath(bakdir)
 
-  content = os.fdopen(content)
+    rcdir = os.path.join(os.path.expanduser('~'), '.bakcontentrc')
+    if not os.path.isdir(rcdir):
+        eprint("cannot unregister '%s': no global '%s'" % (bakdir, rcdir))
+        exit(1)
 
-  if os.path.islink(fn):
-    with content:
-      content.write(unicode(os.readlink(fn)))
-  else:
-    content.close()
-    shutil.copy2(fn, tmp_cfn)
+    with pushdir(rcdir):
+        paths = set()
+        try:
+            with open('list') as f:
+                paths = set(f.read().strip().split())
+        except:
+            pass
 
-  h = subprocess.check_output(['md5sum', tmp_cfn]).split()[0]
+        paths.discard(bakdir)
 
-  h_tmp_cfn = os.path.join(os.path.dirname(fn), TMP_BAKPREFIX + h)
-  # Not moved to the backing store yet, even if it were local,
-  # because it could be slow if the store is not on the same
-  # partition, say.
-  os.rename(tmp_cfn, h_tmp_cfn)
+        with atomicopenw('list') as f:
+            f.write('\n'.join(paths) + '\n')
 
-  if entropy.is_worth_deflating(basedir, h_tmp_cfn):
-    # -n to not record name/attributes in the gzip file: would make it
-    # impossible to compare .gz content files without decompressing.
-    subprocess.check_call(['gzip', '-n', h_tmp_cfn])
-    h_tmp_cfn += '.gz'
+        with open('list') as f:
+            paths = set(f.readlines())
+        if bakdir in paths:
+            # Retry.
+            global_unregister(bakdir)
 
-  return h_tmp_cfn, h
+def register(args):
+    argparser = argparse.ArgumentParser()
+    args_default(argparser)
+    argparser.add_argument('--root', nargs='?',
+            help='current dir if omitted')
+    cmdargs = argparser.parse_args(args)
 
-def stat_list(cfn):
-  r = []
-  s = os.stat(cfn)
-  # We store the size to facilitate integrity checks.
-  for st in 'st_size st_mode st_uid st_gid st_atime st_mtime st_ctime'.split():
-    r.append(str(getattr(s, st)))
-  return r
+    bakdir = cmdargs.bakcontent
+    if cmdargs.root is None:
+        rootdir = '..'
+    else:
+        if os.path.isabs(cmdargs.root):
+            rootdir = cmdargs.root
+        else:
+            rootdir = os.path.join('..', cmdargs.root)
 
-def meta_fn(hist, fn):
-  return os.path.join(hist.metadir, fn)
+    nobak = os.path.join(rootdir, '.nobakcontent')
+    if os.path.exists(nobak):
+        eprint("Error: '%s' exists, cannot register")
 
-def write_meta(m, h, sl):
-  m.write(h + '\n')
-  m.write(' '.join(sl) + '\n')
-  m.write(g_hostname + ' ' + g_full_hostname + '\n')
+    if not os.path.isdir(bakdir):
+        try:
+            os.makedirs(bakdir)
+        except OSError, e:
+            eprint("Error: cannot init '%s': %s" % (bakdir, e))
+            exit(1)
 
-def create_meta(hist, fn, h, tmp_cfn):
-  mfn = meta_fn(hist, fn)
-  try:
-    os.makedirs(os.path.dirname(mfn))
-  except OSError, e:
-    if e.errno != errno.EEXIST:
-      raise e
+    with pushdir(bakdir):
+        with atomicopenw('root') as f:
+            f.write(os.path.realpath(rootdir) + '\n')
 
-  with open(mfn, 'w') as m:
-    write_meta(m, h, stat_list(tmp_cfn))
+    histdir = os.path.join(bakdir, 'history')
+    if not os.path.isdir(histdir):
+        os.makedirs(histdir)
+        with pushdir(histdir):
+            e = shell('git init')
+            if e:
+                exit(e)
+            e = shell('git config --add gc.auto 1000')
+            if e:
+                exit(e)
+            e = shell('git config --add pack.packSizeLimit 1m')
+            if e:
+                exit(e)
 
-  shutil.copystat(tmp_cfn, mfn)
+    store_add(bakdir, ['default', os.path.join(bakdir, 'default')])
 
-class Snap(object):
-  def __init__(self, fn, h, tmp_cfn):
-    self.fn = fn
-    self.h = h
-    self.tmp_cfn = tmp_cfn
+    global_register(bakdir)
 
-  @classmethod
-  def from_content_tmp_only(cls, tmp_cfn):
-    bn = os.path.splitext(os.path.basename(tmp_cfn))[0]
-    assert bn.startswith(TMP_BAKPREFIX)
-    h = re.sub(r'^' + TMP_BAKPREFIX, '', bn)
-    return cls(None, h, tmp_cfn)
+def unregister(args):
+    argparser = argparse.ArgumentParser()
+    args_default(argparser)
+    cmdargs = argparser.parse_args(args)
 
-def snapshot_file(hist, basedir, fn):
-  tmp_cfn, h = create_content_tmp(basedir, fn)
-  create_meta(hist, fn, h, tmp_cfn)
-  return Snap(fn, h, tmp_cfn)
+    bakdir = args_parse_dirs(cmdargs)
 
-def snapshot_multiple_files(hist, basedir, fns):
-  snaps = []
-  for fn in fns:
-    snaps.append(snapshot_file(hist, basedir, fn))
+    global_unregister(bakdir)
 
-  for snap in snaps:
-    hist.add_meta(snap.fn)
-  hist.commit()
+def snapshot(args):
+    argparser = argparse.ArgumentParser()
+    args_default(argparser)
+    cmdargs = argparser.parse_args(args)
 
-  return snaps
+    bakdir = args_parse_dirs(cmdargs)
+    bakdir = os.path.realpath(bakdir)
+    e = shell("bakcontent-do '%s' snapshot" % bakdir)
+    if e:
+        exit(e)
 
-def store_multiple_files(store, basedir, fns):
-  snaps = map(Snap.from_content_tmp_only, fns)
+def store_add(bakdir, args):
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('name',
+            help='store name')
+    argparser.add_argument('spec',
+            help='store specification (path for local, s3://, ssh://)')
+    cmdargs = argparser.parse_args(args)
 
-  for snap in snaps:
-    store.save_content(snap.h, snap.tmp_cfn)
+    store = Store(bakdir, cmdargs.name, cmdargs.spec)
+    store.add()
 
-def backup_multiple_files(store, hist, basedir, fns):
-  snaps = snapshot_multiple_files(hist, basedir, fns)
+def store_rm(bakdir, args):
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('name',
+            help='store name')
+    cmdargs = argparser.parse_args(args)
 
-  for snap in snaps:
-    store.save_content(snap.h, snap.tmp_cfn)
+    store = Store(bakdir, cmdargs.name)
+    store.rm()
 
-def gather_all_files(basedir, filter=None, _dest=None):
-  if not os.path.isdir(basedir):
-    raise Exception("Argument '%s' is not a directory" % e)
-  if os.path.isfile(os.path.join(basedir, DO_NOT_BACKUP)):
-    raise Exception("Directory '%s' is marked with file '%s'" % (basedir, DO_NOT_BACKUP))
+def store_ls(bakdir):
+    with pushdir(bakdir):
+        for sfn in glob.glob('stores/*'):
+            with open(sfn) as f:
+                sn = os.path.basename(sfn)
+                spec = f.read().strip()
+                print sn, spec
 
-  fns = _dest or []
-  for root, dirs, files in os.walk(basedir):
-    if os.path.isfile(os.path.join(root, DO_NOT_BACKUP)):
-      continue
+def store_sync(bakdir, args):
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('name',
+            help='store name')
+    cmdargs = argparser.parse_args(args)
 
-    relroot = os.path.relpath(root, basedir)
-    for f in files:
-      full = os.path.join(relroot, f)
-      if filter is None or filter(basedir, full):
-        fns.append(full)
+    bakdir = os.path.realpath(bakdir)
+    e = shell("bakcontent-do '%s' store-sync %s" % (bakdir, cmdargs.name))
+    if e:
+        exit(e)
 
-    try:
-      dirs.remove(BAKPREFIX)
-    except ValueError:
-      pass
-  return fns
+def store(args):
+    argparser = argparse.ArgumentParser()
+    args_default(argparser)
+    argparser.add_argument('store_cmd', nargs='?', default='sync',
+            help='sync (default), add, rm, ls')
+    argparser.add_argument('args', nargs='*',
+            help="cmd arguments (e.g. 'help')")
+    cmdargs = argparser.parse_args(args)
 
-def filter_out_bakcontent_files(basedir, fn):
-  return not fn.startswith(BAKPREFIX)
+    bakdir = args_parse_dirs(cmdargs)
+    further_args = cmdargs.args
 
-def filter_content_tmp(basedir, fn):
-  return os.path.basename(fn).startswith(TMP_BAKPREFIX)
+    if cmdargs.store_cmd == 'sync':
+        store_sync(bakdir, further_args)
+    elif cmdargs.store_cmd == 'add':
+        store_add(bakdir, further_args)
+    elif cmdargs.store_cmd == 'rm':
+        store_rm(bakdir, further_args)
+    elif cmdargs.store_cmd == 'ls':
+        store_ls(bakdir)
 
-def command(cmd, args, **kw):
-  if cmd == 'backup':
-    assert len(args) == 1 and os.path.isdir(args[0])  # Only support backing up one dir recursively for now.
+def main():
+    if len(sys.argv) < 2:
+        eprint("Usage: %s <cmd> [args...]")
+        exit(1)
 
-    basedir = args[0]
-    hist = history.History(os.path.join(basedir, BAKPREFIX, 'history'))
-    store = stores.disk.Disk(os.path.join(basedir, BAKPREFIX, 'content'))
+    cmd = sys.argv[1]
+    further_args = sys.argv[2:]
 
-    fns = gather_all_files(basedir, filter=filter_out_bakcontent_files)
-    backup_multiple_files(store, hist, basedir, fns)
-
-  elif cmd == 'snapshot':
-    assert len(args) == 1 and os.path.isdir(args[0])  # Only support backing up one dir recursively for now.
-
-    basedir = args[0]
-    hist = history.History(os.path.join(basedir, BAKPREFIX, 'history'))
-
-    fns = gather_all_files(basedir, filter=filter_out_bakcontent_files)
-    snapshot_multiple_files(hist, basedir, fns)
-
-  elif cmd == 'store':
-    assert len(args) == 1 and os.path.isdir(args[0])  # Only support backing up one dir recursively for now.
-
-    basedir = args[0]
-    store = stores.disk.Disk(os.path.join(basedir, BAKPREFIX, 'content'))
-
-    fns = gather_all_files(basedir, filter=filter_content_tmp)
-    store_multiple_files(store, basedir, fns)
-
-  else:
-    print '''Usage: %s <cmd> args...
-Commands:
-  backup [--store <backing_store>] <directory>
-        Snapshot and store <directory>.
-  snapshot <directory>
-        Snapshot <directory>.
-  store [--store <backing_store>] <directory>
-        Push the snapshots in <directory> to the backing store.
-  help
-        This message.
-''' % sys.argv[0]
-
+    if cmd == 'register':
+        register(further_args)
+    elif cmd == 'unregister':
+        unregister(further_args)
+    elif cmd == 'snapshot':
+        snapshot(further_args)
+    elif cmd == 'store':
+        store(further_args)
+    else:
+        eprint("Error: invalid command '%s'" % cmd)
+        exit(1)
 
 if __name__ == '__main__':
-  if len(sys.argv) == 1:
-    sys.exit(command('help', []))
-  else:
-    cmd = sys.argv[1]
-    opts, args = getopt.getopt(sys.argv[2:], None, ['store='])
-    sys.exit(command(cmd, args, **dict(opts)))
+    main()

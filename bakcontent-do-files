@@ -1,0 +1,135 @@
+#!/usr/bin/env python2
+
+import sys
+import os
+import os.path
+import errno
+import hashlib
+import stat
+import re
+from common import *
+
+def compute_sha512(st, fn):
+    h = hashlib.sha512()
+
+    if stat.S_ISLNK(st.st_mode):
+        h.update(os.readlink(fn))
+        return h.hexdigest()
+
+    with open(fn) as f:
+        while True:
+            buf = f.read(256*1024)
+            h.update(buf)
+            if len(buf) < 256*1024:
+                break
+    return h.hexdigest()
+
+def meta_fn(histdir, fn):
+    return os.path.join(histdir, fn)
+
+def meta_write(out, sha512, st):
+    out.write(sha512 + '\n')
+    out.write("v1 %lu 0x%lx %lu %lu %f %f\n" \
+            % (st.st_size, st.st_mode, st.st_uid, st.st_gid, st.st_mtime, st.st_ctime))
+
+def meta_parse(m):
+    try:
+        meta = object()
+        lines = m.split('\n')
+        meta.sha512 = lines[0].strip()
+        f = lines[1].split()
+        if f[1] != 'v1':
+            eprint("Error: Unsupport meta format version '%s'" % f[1])
+        meta.st_size = long(f[2])
+        meta.st_mode = int(f[3])
+        meta.st_uid = long(f[4])
+        meta.st_gid = long(f[5])
+        meta.st_mtime = float(f[6])
+        meta.st_ctime = float(f[7])
+        return meta
+    except:
+        raise Exception()
+
+def forcemakedirs(histdir, dn):
+    try:
+        trymakedirs(dn)
+        return
+    except OSError, e:
+        if e.errno not in [errno.EEXIST, errno.ENOTDIR]:
+            raise e
+
+    stem = ''
+    for p in os.path.split(dn):
+        stem = os.path.join(stem, p)
+        if os.path.isfile(stem):
+            assert stem.startswith(histdir)
+            os.remove(stem)
+            break
+    trymakedirs(dn)
+
+def snapshot_one(histdir, fn):
+    st = os.lstat(fn)
+    sha512 = compute_sha512(st, fn)
+
+    mfn = meta_fn(histdir, fn)
+    forcemakedirs(histdir, os.path.dirname(mfn))
+
+    with atomicopenw(mfn) as out:
+        meta_write(out, sha512, st)
+
+def lazy_sha512(histdir, fn):
+    mfn = meta_fn(histdir, fn)
+    try:
+        with open(mfn) as f:
+            meta = meta_parse(f.read())
+
+        st = os.lstat(fn)
+        if st.mtime == meta.st_mtime and st.ctime == meta.st_ctime:
+            return hist.hash
+    except OSError, e:
+        if e.errno not in [errno.EEXIST, errno.ENOTDIR]:
+            raise e
+    except Exception, ignore:
+        # e.g. format error, corrupted file.
+        pass
+
+    st = os.lstat(fn)
+    return compute_sha512(st, fn)
+
+def store_one(store, histdir, fn):
+    try:
+        sha512 = lazy_sha512(histdir, fn)
+        store.archive(sha512, fn)
+    except OSError, e:
+        # File has disappeared. Skip.
+        pass
+
+if len(sys.argv) < 3:
+    eprint("Usage: %s <.bakcontent/> <cmd> [args...]" % sys.argv[0])
+    exit(1)
+
+bakdir = sys.argv[1]
+cmd = sys.argv[2]
+
+if not os.path.isdir(bakdir):
+    eprint("Error: '%s' is not a directory" % bakdir)
+    exit(1)
+histdir = os.path.join(bakdir, 'history')
+
+if cmd == 'snapshot':
+    trymakedirs(histdir)
+    for fn in sys.stdin:
+        snapshot_one(histdir, fn.rstrip())
+
+elif cmd == 'store-sync':
+    if len(sys.argv) != 4:
+        eprint("Usage: %s <.bakcontent/> store <store>")
+        exit(1)
+    store = Store(bakdir, sys.argv[3])
+
+    for fn in sys.stdin:
+        store_one(store, histdir, fn.rstrip())
+
+else:
+    eprint("Invalid command '%s'" % cmd)
+    exit(1)
