@@ -167,7 +167,7 @@ def store_ls(bakdir):
 
 def store_sync(bakdir, args):
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('name',
+    argparser.add_argument('name', nargs='?', default='default',
             help='store name')
     cmdargs = argparser.parse_args(args)
 
