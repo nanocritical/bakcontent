@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+for t in t/t*.sh; do
+  t=$(basename $t)
+  rm -rf t/tmp_$t
+done

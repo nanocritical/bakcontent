@@ -1,9 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 for t in t/t*.sh; do
   if ! ./$t; then
     err=$?
     echo "FAILED $t"
+    echo run './cleantests' before trying again
     exit $err
   fi
 done
