@@ -6,8 +6,9 @@ import tempfile
 import shutil
 
 def args_default(argparser):
-    argparser.add_argument('--bakcontent', nargs='?', default='.bakcontent',
-            help="defaults to '.bakcontent', or 'ROOT/.bakcontent' if --root is used; ")
+    argparser.add_argument('--bakcontent', default='.bakcontent',
+            help=("path to .bakcontent of repo (for instance /home/e/.bakcontent);"
+                + " defaults to '.bakcontent', or 'ROOT/.bakcontent' if --root is used"))
 
 def args_parse_dirs(args):
     bakdir = args.bakcontent
