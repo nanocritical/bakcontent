@@ -13,7 +13,10 @@ def args_default(argparser):
 def args_parse_dirs(args):
     bakdir = args.bakcontent
     if not os.path.isdir(bakdir):
-        eprint("Error: '%s' not a valid .bakcontent directory" % bakdir)
+        eprint("Error: '%s' not a valid .bakcontent directory (missing)" % bakdir)
+        exit(1)
+    elif not os.path.exists(os.path.join(bakdir, 'root')):
+        eprint("Error: '%s' not a valid .bakcontent directory (file 'root' missing)" % bakdir)
         exit(1)
     return bakdir
 

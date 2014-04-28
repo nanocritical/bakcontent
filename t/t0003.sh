@@ -16,15 +16,10 @@ cp a b c e
 bakcontent register
 bakcontent snapshot
 
-rm a
-mkdir a
-touch a/aa
-
-bakcontent snapshot
+! bakcontent store add clash .bakcontent/default
 bakcontent unregister
 
 bakcontent register
-bakcontent store add store1 .bakcontent/content
-bakcontent store add store2 .bakcontent
+bakcontent snapshot
 
 teardown

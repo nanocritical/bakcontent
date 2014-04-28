@@ -7,8 +7,10 @@ echo 1 > a
 echo 2 > b
 echo 3 > c
 
-mkdir .bakcontent
+# Not registered.
+! bakcontent snapshot &> /dev/null
 
+bakcontent register
 bakcontent snapshot
 
 # We turn a file into a directory.
