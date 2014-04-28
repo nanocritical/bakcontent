@@ -5,7 +5,7 @@ export PATH=$PATH:$PWD/..
 troot=$(dirname $0)
 t=$(basename $0)
 
-mkdir -p tmp_$t
+mkdir tmp_$t || (echo run ./cleantests after a failure; exit 1)
 cd tmp_$t
 
 function teardown() {
