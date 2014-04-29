@@ -48,6 +48,9 @@ touch e/.nobakcontent
 bakcontent snapshot
 
 test ! -f .bakcontent/history/e/a
+test -f .bakcontent/history/la
+test -f .bakcontent/history/lla
+test -f .bakcontent/history/d/a
 
 bakcontent store sync
 

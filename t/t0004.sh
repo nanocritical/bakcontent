@@ -20,4 +20,21 @@ touch c/cc
 
 bakcontent snapshot
 
+# We remove a file.
+rm a
+bakcontent snapshot
+test ! -f .bakcontent/history/a
+
+# We remove a file making a directory empty.
+rm c/cc
+bakcontent snapshot
+test ! -e .bakcontent/history/c
+
+touch c/cc
+bakcontent snapshot
+# We remove a directory.
+rm -r c
+bakcontent snapshot
+test ! -e .bakcontent/history/c
+
 teardown
