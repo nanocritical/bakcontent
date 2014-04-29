@@ -83,13 +83,18 @@ for pr in procs:
         exit(e)
 
 if cmd == 'snapshot':
-    histdir = os.path.join(bakdir, 'history')
     with pushdir(histdir):
-        e = shell("git add -A > /dev/null")
+        e = shell("git add -A . > /dev/null")
         if e:
+            eprint("Error in git add")
             exit(e)
-        shell("git commit -m. > /dev/null")
+
+        # Returns 1 if there is nothing to commit.
+        ignore = shell("git commit -m. > /dev/null")
+
+        e = shell("git clean -fd > /dev/null")
         if e:
+            eprint("Error in git clean")
             exit(e)
 elif cmd == 'store-sync':
     name = further_args[0]
