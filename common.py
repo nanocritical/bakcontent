@@ -5,6 +5,7 @@ import errno
 import tempfile
 import shutil
 import socket
+import hashlib
 
 def args_default(argparser):
     argparser.add_argument('--bakcontent', default='.bakcontent',
@@ -120,27 +121,65 @@ class Store(object):
 
     def rm(self):
         with pushdir(self.bakdir):
-            os.remove(os.path.join('stores', self.name))
+            os.unlink(os.path.join('stores', self.name))
 
-    def archive(self, sha512, fn):
+    def archive(self, fn, maybe_sha512):
         if self.kind == Store.LOCAL:
-            self.archive_local(sha512, fn)
+            self.archive_local(fn, maybe_sha512)
         elif self.kind == Store.SSH:
-            self.archive_ssh(sha512, fn)
+            self.archive_ssh(fn, maybe_sha512)
         elif self.kind == Store.S3:
-            self.archive_s3(sha512, fn)
+            self.archive_s3(fn, maybe_sha512)
 
-    def archive_local(self, sha512, fn):
-        prefix = sha512[0:3]
-        dstfn = os.path.join(self.spec, prefix, sha512)
-        if not os.path.exists(dstfn):
-            trymakedirs(os.path.dirname(dstfn))
-            shutil.copy(fn, dstfn)
+    def archive_local(self, fn, maybe_sha512):
+        # (Optimistically) Check for existence with 'maybe_sha512' (if not
+        # None), but always store under real, computed-during-copy SHA-512 to
+        # work in the presence of races with concurrent writers to 'fn'.
+        if maybe_sha512 is not None:
+            prefix = maybe_sha512[0:3]
+            dstfn = os.path.join(self.spec, 'data', prefix, maybe_sha512)
+            if os.path.exists(dstfn):
+                return
 
-    def archive_ssh(self, sha512, fn):
+        (tmpfd, tmpfn) = tempfile.mkstemp(prefix='bakcontentpartial', dir=self.spec)
+        out = os.fdopen(tmpfd, 'w')
+        try:
+            try:
+                h = hashlib.sha512()
+
+                if os.path.islink(fn):
+                    buf = os.readlink(fn)
+                    h.update(buf)
+                    out.write(buf)
+                    sha512 = h.hexdigest()
+
+                else:
+                    with open(fn) as f:
+                        while True:
+                            buf = f.read(256*1024)
+                            h.update(buf)
+                            out.write(buf)
+                            if len(buf) < 256*1024:
+                                break
+                        sha512 = h.hexdigest()
+            finally:
+                out.close()
+
+            prefix = sha512[0:3]
+            dstfn = os.path.join(self.spec, 'data', prefix, sha512)
+            if not os.path.exists(dstfn):
+                trymakedirs(os.path.dirname(dstfn))
+                os.rename(tmpfn, dstfn)
+            else:
+                os.unlink(tmpfn)
+        except Exception, e:
+            os.unlink(tmpfn)
+            raise e
+
+    def archive_ssh(self, fn, maybe_sha512):
         assert False
 
-    def archive_s3(self, sha512, fn):
+    def archive_s3(self, fn, maybe_sha512):
         assert False
 
     def archive_history(self):

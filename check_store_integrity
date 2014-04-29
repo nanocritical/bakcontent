@@ -1,0 +1,32 @@
+#!/usr/bin/env python2
+
+import os
+import os.path
+import hashlib
+from common import *
+
+if len(sys.argv) != 2:
+    eprint("Usage: %s <store_spec>" % sys.argv[0])
+    exit(1)
+
+spec = sys.argv[1]
+
+failed = False
+
+for root, dirs, files in os.walk(os.path.join(spec, 'data')):
+    for fn in files:
+        h = hashlib.sha512()
+        with open(os.path.join(root, fn)) as f:
+            while True:
+                buf = f.read(256*1024)
+                h.update(buf)
+                if len(buf) < 256*1024:
+                    break
+        sha512 = h.hexdigest()
+
+        if sha512 != fn:
+            eprint("Corrupted content file '%s'\n" % os.path.join(root, fn))
+            failed = True
+
+if failed:
+    exit(1)

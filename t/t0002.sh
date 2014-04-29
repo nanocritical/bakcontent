@@ -46,4 +46,8 @@ bakcontent store sync --all
 [[ "8192" == $(count_store_files localstore2) ]]
 [[ "8192" == $(count_store_files .bakcontent/default) ]]
 
+check_store_integrity .bakcontent/default
+check_store_integrity localstore
+check_store_integrity localstore2
+
 teardown

@@ -40,7 +40,7 @@ def remove_extra_meta_files(histdir, root, files, dirs):
             if stat.S_ISDIR(st.st_mode):
                 shutil.rmtree(mfn, ignore_errors=True)
             else:
-                os.remove(mfn)
+                os.unlink(mfn)
         except EnvironmentError, e:
             if e.errno == errno.ENOENT:
                 pass  # Skip disappeared.

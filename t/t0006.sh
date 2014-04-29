@@ -38,4 +38,7 @@ pushd bk > /dev/null
 bakcontent store sync B
 popd > /dev/null
 
+check_store_integrity A
+check_store_integrity bk/B
+
 teardown

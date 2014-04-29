@@ -46,7 +46,7 @@ def forcemakedirs(histdir, dn):
         stem = os.path.join(stem, p)
         if os.path.isfile(stem):
             assert stem.startswith(histdir)
-            os.remove(stem)
+            os.unlink(stem)
             break
     trymakedirs(dn)
 
@@ -89,7 +89,7 @@ def meta_parse(m):
     except ValueError, e:
         raise IgnoredException()
 
-def lazy_sha512(histdir, fn, st=None):
+def try_lazy_sha512(histdir, fn, st=None):
     mfn = meta_fn(histdir, fn)
     try:
         with open(mfn) as f:
@@ -106,6 +106,13 @@ def lazy_sha512(histdir, fn, st=None):
     except IgnoredException, ignore:
         # e.g. format error, corrupted file.
         pass
+
+    return None
+
+def lazy_sha512(histdir, fn, st=None):
+    maybe_sha512 = try_lazy_sha512(histdir, fn, st)
+    if maybe_sha512 is not None:
+        return maybe_sha512
 
     if st is None:
         st = os.lstat(fn)
@@ -124,8 +131,8 @@ def snapshot_one(histdir, fn):
 
 def store_one(store, histdir, fn):
     try:
-        sha512 = lazy_sha512(histdir, fn)
-        store.archive(sha512, fn)
+        maybe_sha512 = try_lazy_sha512(histdir, fn)
+        store.archive(fn, maybe_sha512)
     except EnvironmentError, e:
         # Skip.
         pass
