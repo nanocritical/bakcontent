@@ -124,7 +124,7 @@ class Store(object):
             self.archive_ssh(sha512, fn)
 
     def archive_local(self, sha512, fn):
-        prefix = sha512[0:2]
+        prefix = sha512[0:3]
         dstfn = os.path.join(self.spec, prefix, sha512)
         if not os.path.exists(dstfn):
             trymakedirs(os.path.dirname(dstfn))
