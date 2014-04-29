@@ -32,14 +32,14 @@ rootdir = get_rootdir(bakdir)
 if cmd == 'snapshot':
     histdir = os.path.join(bakdir, 'history')
     with pushdir(histdir):
-        e = shell("git rm -rf --ignore-unmatch * > /dev/null")
+        e = shell("git rm -rf --cached --ignore-unmatch * > /dev/null")
         if e:
             exit(e)
 
 # Make sure the subprocesses run in 'rootdir'
 os.chdir(rootdir)
 procs = [subprocess.Popen("bakcontent-do-files %s %s %s" % (bakdir, cmd, ' '.join(further_args)), \
-        close_fds=True, shell=True, stdin=subprocess.PIPE) for _ in range(8)]
+        close_fds=True, shell=True, stdin=subprocess.PIPE) for _ in range(4)]
 current = 0
 
 for pr in procs:
