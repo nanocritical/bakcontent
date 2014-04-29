@@ -21,7 +21,7 @@ def args_parse_dirs(args):
     elif not os.path.exists(os.path.join(bakdir, 'root')):
         eprint("Error: '%s' not a valid .bakcontent directory (file 'root' missing)" % bakdir)
         exit(1)
-    return bakdir
+    return os.path.realpath(bakdir)
 
 def get_rootdir(bakdir):
     with pushdir(bakdir):
