@@ -131,12 +131,13 @@ def store_one(store, histdir, fn):
         pass
 
 def main():
-    if len(sys.argv) < 3:
-        eprint("Usage: %s <.bakcontent/> <cmd> [args...]" % sys.argv[0])
+    if len(sys.argv) < 4:
+        eprint("Usage: %s <worker-id> <.bakcontent/> <cmd> [args...]" % sys.argv[0])
         exit(1)
 
-    bakdir = sys.argv[1]
-    cmd = sys.argv[2]
+    worker_id = int(sys.argv[1])
+    bakdir = sys.argv[2]
+    cmd = sys.argv[3]
 
     if not os.path.isdir(bakdir):
         eprint("Error: '%s' is not a directory" % bakdir)
@@ -149,10 +150,13 @@ def main():
             snapshot_one(histdir, fn.rstrip())
 
     elif cmd == 'store-sync':
-        if len(sys.argv) != 4:
-            eprint("Usage: %s <.bakcontent/> store <store>")
+        if len(sys.argv) != 5:
+            eprint("Usage: %s <worker-id> <.bakcontent/> store <store>")
             exit(1)
-        store = Store(bakdir, sys.argv[3])
+        store = Store(bakdir, sys.argv[4])
+
+        if worker_id == 0:
+            store.archive_history()
 
         for fn in sys.stdin:
             store_one(store, histdir, fn.rstrip())

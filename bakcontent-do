@@ -79,9 +79,9 @@ def main() :
 
     # Make sure the subprocesses run in 'rootdir'
     with pushdir(rootdir):
-        procs = [subprocess.Popen("bakcontent-do-files %s %s %s" % (bakdir, cmd, ' '.join(further_args)), \
-                close_fds=True, shell=True, stdin=subprocess.PIPE) for _ in range(4)]
-        current = 0
+        procs = [subprocess.Popen("bakcontent-do-files %d %s %s %s" % (worker_id, bakdir, cmd, ' '.join(further_args)), \
+                close_fds=True, shell=True, stdin=subprocess.PIPE) for worker_id in range(4)]
+        current = 1  # worker 0 may have something special to do first.
 
     for pr in procs:
         e = pr.poll()

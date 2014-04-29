@@ -4,6 +4,7 @@ import sys
 import errno
 import tempfile
 import shutil
+import socket
 
 def args_default(argparser):
     argparser.add_argument('--bakcontent', default='.bakcontent',
@@ -74,11 +75,17 @@ def shell(*args):
     else:
         return 1
 
+def hist_store_path(bakdir):
+    # Why the merry fuck os.path.join? "If any component is an absolute path,
+    # all previous path components will be discarded."
+    return os.path.join('histories', socket.gethostname(), os.path.abspath(bakdir).lstrip('/'))
+
 class Store(object):
     LOCAL, SSH, S3 = range(3)
 
     def __init__(self, bakdir, name, spec=None):
         self.bakdir = bakdir
+        self.histdir = os.path.join(bakdir, 'history')
         self.name = name
         if spec is not None:
             self.spec = spec
@@ -121,7 +128,7 @@ class Store(object):
         elif self.kind == Store.SSH:
             self.archive_ssh(sha512, fn)
         elif self.kind == Store.S3:
-            self.archive_ssh(sha512, fn)
+            self.archive_s3(sha512, fn)
 
     def archive_local(self, sha512, fn):
         prefix = sha512[0:3]
@@ -134,4 +141,35 @@ class Store(object):
         assert False
 
     def archive_s3(self, sha512, fn):
+        assert False
+
+    def archive_history(self):
+        if self.kind == Store.LOCAL:
+            self.archive_history_local()
+        elif self.kind == Store.SSH:
+            self.archive_history_ssh()
+        elif self.kind == Store.S3:
+            self.archive_history_ssh()
+
+    def archive_history_local(self):
+        dsthistdir = os.path.join(self.spec, hist_store_path(self.bakdir))
+        trymakedirs(dsthistdir)
+        with pushdir(dsthistdir):
+            ignore = shell('git init --bare > /dev/null')
+            e = shell("git remote add origin '%s' 2> /dev/null" % self.histdir)
+            if e:
+                ignore = shell("git remote remove origin")
+                e = shell("git remote add origin '%s'" % self.histdir)
+                if e:
+                    eprint("Error in git remote add")
+                    exit(e)
+            e = shell("git fetch -t origin 2> /dev/null")
+            if e:
+                eprint("Error in git fetch")
+                exit(e)
+
+    def archive_history_ssh(self):
+        assert False
+
+    def archive_history_s3(self):
         assert False

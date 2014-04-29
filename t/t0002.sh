@@ -11,7 +11,12 @@ bakcontent register
 
 bakcontent store add localstore localstore
 bakcontent store sync localstore
-[[ "1" == $(find localstore -type f |grep -v .nobakcontent |wc -l) ]]
+
+function count_store_files() {
+  find $1 -type f |grep -v .nobakcontent |grep -v histories |wc -l
+}
+
+[[ "1" == $(count_store_files localstore) ]]
 
 bakcontent snapshot
 bakcontent store sync localstore
@@ -23,22 +28,22 @@ done
 
 bakcontent store sync localstore
 
-[[ "8193" == $(find localstore -type f |grep -v .nobakcontent |wc -l) ]]
+[[ "8193" == $(count_store_files localstore) ]]
 
 bakcontent snapshot
 bakcontent store sync localstore
 
-[[ "8193" == $(find localstore -type f |grep -v .nobakcontent |wc -l) ]]
+[[ "8193" == $(count_store_files localstore) ]]
 
 bakcontent store add localstore2 localstore2
 
-[[ "0" == $(find localstore2 -type f |grep -v .nobakcontent |wc -l) ]]
-[[ "0" == $(find .bakcontent/default -type f |grep -v .nobakcontent |wc -l) ]]
+[[ "0" == $(count_store_files localstore2) ]]
+[[ "0" == $(count_store_files .bakcontent/default) ]]
 
 bakcontent store sync --all
 
-[[ "8193" == $(find localstore -type f |grep -v .nobakcontent |wc -l) ]]
-[[ "8192" == $(find localstore2 -type f |grep -v .nobakcontent |wc -l) ]]
-[[ "8192" == $(find .bakcontent/default -type f |grep -v .nobakcontent |wc -l) ]]
+[[ "8193" == $(count_store_files localstore) ]]
+[[ "8192" == $(count_store_files localstore2) ]]
+[[ "8192" == $(count_store_files .bakcontent/default) ]]
 
 teardown
