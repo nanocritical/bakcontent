@@ -47,103 +47,111 @@ def remove_extra_meta_files(histdir, root, files, dirs):
             else:
                 raise e
 
-if len(sys.argv) < 3:
-    eprint("Usage: %s <.bakcontent> <cmd> [args...]" % sys.argv[0])
-    exit(1)
+def main() :
+    if len(sys.argv) < 3:
+        eprint("Usage: %s <.bakcontent> <cmd> [args...]" % sys.argv[0])
+        exit(1)
 
-bakdir = sys.argv[1]
-cmd = sys.argv[2]
-further_args = sys.argv[3:]
+    bakdir = sys.argv[1]
+    cmd = sys.argv[2]
+    further_args = sys.argv[3:]
 
-if not os.path.isabs(bakdir):
-    eprint("'%s' must be an absolute path" % bakdir)
-    exit(1)
-if not os.path.isdir(bakdir):
-    eprint("'%s' must be a directory" % bakdir)
-    exit(1)
+    if not os.path.isabs(bakdir):
+        eprint("'%s' must be an absolute path" % bakdir)
+        exit(1)
+    if not os.path.isdir(bakdir):
+        eprint("'%s' must be a directory" % bakdir)
+        exit(1)
 
-# Drop priviledges to minimum.
-st = os.stat(bakdir)
-os.setgid(st.st_gid)
-os.setuid(st.st_uid)
+    # Drop priviledges to minimum.
+    st = os.stat(bakdir)
+    os.setgid(st.st_gid)
+    os.setuid(st.st_uid)
 
-rootdir = get_rootdir(bakdir)
-histdir = os.path.join(bakdir, 'history')
-
-if cmd == 'snapshot':
-    with pushdir(histdir):
-        e = shell("git rm -rf --cached --ignore-unmatch * > /dev/null")
-        if e:
-            exit(e)
-
-# Make sure the subprocesses run in 'rootdir'
-with pushdir(rootdir):
-    procs = [subprocess.Popen("bakcontent-do-files %s %s %s" % (bakdir, cmd, ' '.join(further_args)), \
-            close_fds=True, shell=True, stdin=subprocess.PIPE) for _ in range(4)]
-    current = 0
-
-for pr in procs:
-    e = pr.poll()
-    if e:
-        eprint("subprocess bakcontent-do-files failed with '%s'" % e)
-        exit(e)
-
-fns = []
-for root, dirs, files in os.walk('.'):
-    if os.path.exists(os.path.join(root, '.nobakcontent')):
-        del dirs[:]
-        if cmd == 'snapshot':
-            remove_nobakcontent_meta_dir(histdir, root)
-        continue
-    try:
-        dirs.remove('.bakcontent')
-    except ValueError:
-        pass
-
-    for f in files:
-        f = os.path.join(root, f)
-        fns.append(f)
-
-        if len(fns) >= 16:
-            pr = procs[current]
-            current = (current + 1) % len(procs)
-
-            pr.stdin.write('\n'.join(fns) + '\n')
-            fns = []
+    rootdir = get_rootdir(bakdir)
+    histdir = os.path.join(bakdir, 'history')
 
     if cmd == 'snapshot':
-        remove_extra_meta_files(histdir, root, files, dirs)
+        with pushdir(histdir):
+            e = shell("git rm -rf --cached --ignore-unmatch * > /dev/null")
+            if e:
+                exit(e)
 
-if len(fns) > 0:
-    pr = procs[current]
-    pr.stdin.write('\n'.join(fns) + '\n')
+    # Make sure the subprocesses run in 'rootdir'
+    with pushdir(rootdir):
+        procs = [subprocess.Popen("bakcontent-do-files %s %s %s" % (bakdir, cmd, ' '.join(further_args)), \
+                close_fds=True, shell=True, stdin=subprocess.PIPE) for _ in range(4)]
+        current = 0
 
-for pr in procs:
-    pr.stdin.close()
-
-for pr in procs:
-    e = pr.wait()
-    if e:
-        eprint("subprocess bakcontent-do-files failed with '%s'" % e)
-        exit(e)
-
-if cmd == 'snapshot':
-    with pushdir(histdir):
-        e = shell("git add -A . > /dev/null")
+    for pr in procs:
+        e = pr.poll()
         if e:
-            eprint("Error in git add")
+            eprint("subprocess bakcontent-do-files failed with '%s'" % e)
             exit(e)
 
-        # Returns 1 if there is nothing to commit.
-        ignore = shell("git commit -m. > /dev/null")
+    fns = []
+    for root, dirs, files in os.walk('.'):
+        if os.path.exists(os.path.join(root, '.nobakcontent')):
+            del dirs[:]
+            if cmd == 'snapshot':
+                remove_nobakcontent_meta_dir(histdir, root)
+            continue
+        try:
+            dirs.remove('.bakcontent')
+        except ValueError:
+            pass
 
-        e = shell("git clean -fd > /dev/null")
+        for f in files:
+            f = os.path.join(root, f)
+            fns.append(f)
+
+            if len(fns) >= 16:
+                pr = procs[current]
+                current = (current + 1) % len(procs)
+
+                pr.stdin.write('\n'.join(fns) + '\n')
+                fns = []
+
+        if cmd == 'snapshot':
+            remove_extra_meta_files(histdir, root, files, dirs)
+
+    if len(fns) > 0:
+        pr = procs[current]
+        pr.stdin.write('\n'.join(fns) + '\n')
+
+    for pr in procs:
+        pr.stdin.close()
+
+    for pr in procs:
+        e = pr.wait()
         if e:
-            eprint("Error in git clean")
+            eprint("subprocess bakcontent-do-files failed with '%s'" % e)
             exit(e)
-elif cmd == 'store-sync':
-    name = further_args[0]
-    pass
-else:
-    eprint("Error: invalid command '%s'" % cmd)
-    exit(1)
+
+    if cmd == 'snapshot':
+        with pushdir(histdir):
+            e = shell("git add -A . > /dev/null")
+            if e:
+                eprint("Error in git add")
+                exit(e)
+
+            # Returns 1 if there is nothing to commit.
+            ignore = shell("git commit -m. > /dev/null")
+
+            e = shell("git clean -fd > /dev/null")
+            if e:
+                eprint("Error in git clean")
+                exit(e)
+    elif cmd == 'store-sync':
+        name = further_args[0]
+        pass
+    else:
+        eprint("Error: invalid command '%s'" % cmd)
+        exit(1)
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception, e:
+        eprint(str(e))
+        exit(1)

@@ -130,32 +130,40 @@ def store_one(store, histdir, fn):
         # Skip.
         pass
 
-if len(sys.argv) < 3:
-    eprint("Usage: %s <.bakcontent/> <cmd> [args...]" % sys.argv[0])
-    exit(1)
-
-bakdir = sys.argv[1]
-cmd = sys.argv[2]
-
-if not os.path.isdir(bakdir):
-    eprint("Error: '%s' is not a directory" % bakdir)
-    exit(1)
-histdir = os.path.join(bakdir, 'history')
-
-if cmd == 'snapshot':
-    trymakedirs(histdir)
-    for fn in sys.stdin:
-        snapshot_one(histdir, fn.rstrip())
-
-elif cmd == 'store-sync':
-    if len(sys.argv) != 4:
-        eprint("Usage: %s <.bakcontent/> store <store>")
+def main():
+    if len(sys.argv) < 3:
+        eprint("Usage: %s <.bakcontent/> <cmd> [args...]" % sys.argv[0])
         exit(1)
-    store = Store(bakdir, sys.argv[3])
 
-    for fn in sys.stdin:
-        store_one(store, histdir, fn.rstrip())
+    bakdir = sys.argv[1]
+    cmd = sys.argv[2]
 
-else:
-    eprint("Invalid command '%s'" % cmd)
-    exit(1)
+    if not os.path.isdir(bakdir):
+        eprint("Error: '%s' is not a directory" % bakdir)
+        exit(1)
+    histdir = os.path.join(bakdir, 'history')
+
+    if cmd == 'snapshot':
+        trymakedirs(histdir)
+        for fn in sys.stdin:
+            snapshot_one(histdir, fn.rstrip())
+
+    elif cmd == 'store-sync':
+        if len(sys.argv) != 4:
+            eprint("Usage: %s <.bakcontent/> store <store>")
+            exit(1)
+        store = Store(bakdir, sys.argv[3])
+
+        for fn in sys.stdin:
+            store_one(store, histdir, fn.rstrip())
+
+    else:
+        eprint("Invalid command '%s'" % cmd)
+        exit(1)
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception, e:
+        eprint(str(e))
+        exit(e)
