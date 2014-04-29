@@ -76,6 +76,10 @@ def register(args):
     cmdargs = argparser.parse_args(args)
 
     bakdir = cmdargs.bakcontent
+    if not os.path.basename(bakdir) == '.bakcontent':
+        eprint("Error: '%s' is a malformed .bakcontent directory name" % bakdir)
+        exit(1)
+
     if cmdargs.root is None:
         rootdir = '..'
     else:

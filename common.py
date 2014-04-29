@@ -12,6 +12,9 @@ def args_default(argparser):
 
 def args_parse_dirs(args):
     bakdir = args.bakcontent
+    if not os.path.basename(bakdir) == '.bakcontent':
+        eprint("Error: '%s' is a malformed .bakcontent directory name" % bakdir)
+        exit(1)
     if not os.path.isdir(bakdir):
         eprint("Error: '%s' not a valid .bakcontent directory (missing)" % bakdir)
         exit(1)
