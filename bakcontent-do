@@ -62,7 +62,7 @@ for root, dirs, files in os.walk('.'):
         f = os.path.join(root, f)
         fns.append(f)
 
-        if len(fns) >= 256:
+        if len(fns) >= 16:
             pr = procs[current]
             current = (current + 1) % len(procs)
 
