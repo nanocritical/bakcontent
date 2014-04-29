@@ -106,9 +106,6 @@ def register(args):
             e = shell('git init > /dev/null')
             if e:
                 exit(e)
-            e = shell('git config --add gc.auto 1000 > /dev/null')
-            if e:
-                exit(e)
             e = shell('git config --add pack.packSizeLimit 1m > /dev/null')
             if e:
                 exit(e)

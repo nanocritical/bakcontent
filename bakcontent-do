@@ -142,6 +142,12 @@ def main() :
             if e:
                 eprint("Error in git clean")
                 exit(e)
+
+            e = shell("git gc 2> /dev/null")
+            if e:
+                eprint("Error in git gc")
+                exit(e)
+
     elif cmd == 'store-sync':
         name = further_args[0]
         pass
