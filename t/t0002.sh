@@ -12,10 +12,6 @@ bakcontent register
 bakcontent store add localstore localstore
 bakcontent store sync localstore
 
-function count_store_files() {
-  find $1 -type f |grep -v .nobakcontent |grep -v histories |wc -l
-}
-
 [[ "1" == $(count_store_files localstore) ]]
 
 bakcontent snapshot

@@ -206,7 +206,7 @@ def store(args):
             help=argparse.SUPPRESS)
     cmdargs = argparser.parse_args(args)
 
-    if sys.argv[2] in ['-h', '--help']:
+    if len(sys.argv) >= 3 and sys.argv[2] in ['-h', '--help']:
         argparser.print_help()
         exit(0)
 
@@ -225,6 +225,19 @@ def store(args):
     elif cmdargs.store_cmd == 'ls':
         store_ls(bakdir)
 
+def archive(args):
+    argparser = argparse.ArgumentParser(prog="%s archive" % sys.argv[0])
+    args_default(argparser)
+    argparser.add_argument('name', nargs='?', default='default',
+            help='store name')
+    argparser.add_argument('--all', action='store_true',
+            help='sync over all stores')
+    cmdargs = argparser.parse_args(args)
+
+    bakdir = args_parse_dirs(cmdargs)
+
+    snapshot(['--bakcontent', cmdargs.bakcontent])
+    store_sync(bakdir, args)
 
 def help(is_error):
     out = sys.stderr if is_error else sys.stdout
@@ -235,6 +248,7 @@ Commands:
     unregister  Unregister a repo
     snapshot    Take a metadata snapshot
     store       Store content
+    archive     Combine 'snapshot' and 'store sync'
 
     (see '%s <cmd> -h' for detailed help on each command)
     """
@@ -258,6 +272,8 @@ def main():
         snapshot(further_args)
     elif cmd == 'store':
         store(further_args)
+    elif cmd == 'archive':
+        archive(further_args)
     elif cmd == 'help':
         help(False)
     else:

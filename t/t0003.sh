@@ -22,4 +22,10 @@ bakcontent unregister
 bakcontent register
 bakcontent snapshot
 
+bakcontent archive
+count=$(count_store_files .bakcontent/default)
+
+bakcontent store
+[[ "$count" == $(count_store_files .bakcontent/default) ]]
+
 teardown
