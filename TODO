@@ -1,0 +1,11 @@
+- Assume I/O bandwidth bound, only one process?
+
+Snapshot
+
+- (?) Move removal of extra hist files to a background process
+  bakcontent-snapshot-clean-history
+
+- (?) Opportunistically combine with store when we find content that does not
+  exist in the store.
+
+Store
