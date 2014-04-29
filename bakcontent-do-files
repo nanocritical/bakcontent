@@ -12,16 +12,22 @@ from common import *
 def compute_sha512(st, fn):
     h = hashlib.sha512()
 
-    if stat.S_ISLNK(st.st_mode):
-        h.update(os.readlink(fn))
-        return h.hexdigest()
+    try:
+        if stat.S_ISLNK(st.st_mode):
+            h.update(os.readlink(fn))
+            return h.hexdigest()
 
-    with open(fn) as f:
-        while True:
-            buf = f.read(256*1024)
-            h.update(buf)
-            if len(buf) < 256*1024:
-                break
+        with open(fn) as f:
+            while True:
+                buf = f.read(256*1024)
+                h.update(buf)
+                if len(buf) < 256*1024:
+                    break
+    except EnvironmentError, e:
+        if e.errno == errno.EPERM:
+            eprint("Warning: snapshost: cannot read (Operation not permitted): %s" % fn)
+        raise e
+
     return h.hexdigest()
 
 def meta_fn(histdir, fn):
@@ -95,21 +101,25 @@ def lazy_sha512(histdir, fn, st=None):
     return compute_sha512(st, fn)
 
 def snapshot_one(histdir, fn):
-    st = os.lstat(fn)
-    sha512 = lazy_sha512(histdir, fn, st=st)
+    try:
+        st = os.lstat(fn)
+        sha512 = lazy_sha512(histdir, fn, st=st)
 
-    mfn = meta_fn(histdir, fn)
-    forcemakedirs(histdir, os.path.dirname(mfn))
+        mfn = meta_fn(histdir, fn)
+        forcemakedirs(histdir, os.path.dirname(mfn))
 
-    with atomicopenw(mfn) as out:
-        meta_write(out, sha512, st)
+        with atomicopenw(mfn) as out:
+            meta_write(out, sha512, st)
+    except EnvironmentError, e:
+        # Skip.
+        pass
 
 def store_one(store, histdir, fn):
     try:
         sha512 = lazy_sha512(histdir, fn)
         store.archive(sha512, fn)
     except EnvironmentError, e:
-        # File has disappeared. Skip.
+        # Skip.
         pass
 
 if len(sys.argv) < 3:
