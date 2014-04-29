@@ -37,10 +37,10 @@ if cmd == 'snapshot':
             exit(e)
 
 # Make sure the subprocesses run in 'rootdir'
-os.chdir(rootdir)
-procs = [subprocess.Popen("bakcontent-do-files %s %s %s" % (bakdir, cmd, ' '.join(further_args)), \
-        close_fds=True, shell=True, stdin=subprocess.PIPE) for _ in range(4)]
-current = 0
+with pushdir(rootdir):
+    procs = [subprocess.Popen("bakcontent-do-files %s %s %s" % (bakdir, cmd, ' '.join(further_args)), \
+            close_fds=True, shell=True, stdin=subprocess.PIPE) for _ in range(4)]
+    current = 0
 
 for pr in procs:
     e = pr.poll()
