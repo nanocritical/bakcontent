@@ -7,6 +7,20 @@ import shutil
 import socket
 import hashlib
 
+# Why the merry fuck os.path.join? "If any component is an absolute path,
+# all previous path components will be discarded."
+#
+# "I don't know, why don't you try rmtree(os.path.join('blah', 'doh', '/home/user')). Oups."
+#
+# You're fucking banned.
+insane_join = os.path.join
+os.path.join = None
+def sane_join(*args):
+    return insane_join(args[0], *[a.lstrip('/') for a in args[1:]])
+os.path.join = sane_join
+assert os.path.join('/absolute', '/absolute2/b/c/d') == '/absolute/absolute2/b/c/d'
+assert os.path.join('relative', '/absolute', '/absolute2/b/c/d') == 'relative/absolute/absolute2/b/c/d'
+
 def args_default(argparser):
     argparser.add_argument('--bakcontent', default='.bakcontent',
             help=("path to .bakcontent of repo (for instance /home/e/.bakcontent);"
@@ -77,9 +91,7 @@ def shell(*args):
         return 1
 
 def hist_store_path(bakdir):
-    # Why the merry fuck os.path.join? "If any component is an absolute path,
-    # all previous path components will be discarded."
-    return os.path.join('histories', socket.gethostname(), os.path.abspath(bakdir).lstrip('/'))
+    return os.path.join('histories', socket.gethostname(), os.path.abspath(bakdir))
 
 class Store(object):
     LOCAL, SSH, S3 = range(3)
