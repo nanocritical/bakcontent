@@ -9,3 +9,39 @@ Snapshot
   exist in the store.
 
 Store
+
+- chmod -w on copy of content
+
+- Record the state of the store in a second git. Made of files like:
+    state/abc/def/012/345: list of SHA-512 in the repo with prefix abcdef012345
+
+  Sync would become: fetch store's HEAD. Compare with local version in
+  local branch 'last-sync', send the difference (and create the state/ file, at
+  least for local stores; other stores may handle that themselves).
+
+  Simply relies on a guarantee of append-only (no push -f) on the store's git.
+
+  The state of the store is managed by an independent process on the server
+  side (the owner of the store). It goes through regularly and simply performs
+  a git add -A and git commit on state/. This act effectively publishes the new
+  state of the store.
+
+  If multiple clients are trying to send the same file at the same time, and
+  that this file is not yet recorded in the state, we could still do a "remote
+  exists" check for each individual file before sending it over.
+
+- Do not trust clients. Use a staging area for newly arrived files. Only make
+  them available to other clients once the checksums have been verified.
+
+Checkout
+
+- Support for partial checkout (by path, cdate, ...), partial snapshot
+  (remembering what was checked out, not considering the no-checked out and
+  missing files as deleted).
+
+  Depending on the type of content, different merge strategies would make
+  sense. E.g. pictures: merging non-overlaping files is always fine.
+
+  We want to handle well the case where there is more data in the current
+  history state that there is room to check out on this disk (or that we have
+  time/bandwidth for).
