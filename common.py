@@ -218,6 +218,10 @@ class Store(object):
             if e:
                 eprint("Error in git fetch")
                 exit(e)
+            e = shell("git gc &> /dev/null")
+            if e:
+                eprint("Error in git gc")
+                exit(e)
 
     def archive_history_ssh(self):
         assert False

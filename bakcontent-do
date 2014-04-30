@@ -146,7 +146,7 @@ def main() :
                 eprint("Error in git clean")
                 exit(e)
 
-            e = shell("git gc 2> /dev/null")
+            e = shell("git gc &> /dev/null")
             if e:
                 eprint("Error in git gc")
                 exit(e)
