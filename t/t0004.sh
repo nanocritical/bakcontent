@@ -19,6 +19,7 @@ mkdir c
 touch c/cc
 
 bakcontent snapshot
+test -f .bakcontent/history/c/cc
 
 # We remove a file.
 rm a
@@ -32,6 +33,7 @@ test ! -e .bakcontent/history/c
 
 touch c/cc
 bakcontent snapshot
+
 # We remove a directory.
 rm -r c
 bakcontent snapshot

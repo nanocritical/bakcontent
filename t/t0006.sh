@@ -20,6 +20,11 @@ pushd bk > /dev/null
 bakcontent register --bakcontent .bakcontent --root ..
 popd > /dev/null
 
+mkdir tangent
+pushd tangent > /dev/null
+bakcontent snapshot --bakcontent ../bk/.bakcontent
+popd > /dev/null
+
 bakcontent snapshot --bakcontent bk/.bakcontent
 
 mkdir A
@@ -29,16 +34,27 @@ pushd A > /dev/null
 bakcontent store sync A --bakcontent ../bk/.bakcontent
 popd > /dev/null
 
-mkdir B
-pushd B > /dev/null
-bakcontent store add B . --bakcontent ../bk/.bakcontent
+count=$(count_store_files A)
+[[ "$count" == "3" ]]
+
+mkdir bk/B
+pushd bk/B > /dev/null
+bakcontent store add B . --bakcontent ../../bk/.bakcontent
 popd > /dev/null
 
 pushd bk > /dev/null
 bakcontent store sync B
 popd > /dev/null
 
+[[ "$count" == $(count_store_files bk/B) ]]
+
+bakcontent store sync --bakcontent bk/.bakcontent
+[[ "$count" == $(count_store_files A) ]]
+[[ "$count" == $(count_store_files bk/B) ]]
+[[ "$count" == $(count_store_files bk/.bakcontent/default) ]]
+
 check_store_integrity A
+check_store_integrity bk/B
 check_store_integrity bk/B
 
 teardown

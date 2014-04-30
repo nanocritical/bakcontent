@@ -41,9 +41,9 @@ def forcemakedirs(histdir, dn):
         if e.errno not in [errno.EEXIST, errno.ENOTDIR]:
             raise e
 
-    stem = ''
+    stem = '/' if os.path.abspath(dn) else ''
     for p in os.path.split(dn):
-        stem = os.path.join(stem, p)
+        stem = os.path.normpath(os.path.join(stem, p))
         if os.path.isfile(stem):
             assert stem.startswith(histdir)
             os.unlink(stem)
