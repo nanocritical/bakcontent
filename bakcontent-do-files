@@ -98,8 +98,7 @@ def try_lazy_sha512(histdir, fn, st=None):
         if st is None:
             st = os.lstat(fn)
         if st.st_size == meta['st_size'] \
-                and round(st.st_mtime, 6) == meta['st_mtime'] \
-                and round(st.st_ctime, 6) == meta['st_ctime']:
+                and round(st.st_mtime, 6) == meta['st_mtime']:
             return meta['sha512']
     except EnvironmentError, e:
         pass
