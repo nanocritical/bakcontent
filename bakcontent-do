@@ -154,7 +154,6 @@ def main() :
                 exit(e)
 
     elif cmd == 'store-sync':
-        name = further_args[0]
         pass
     else:
         eprint("Error: invalid command '%s'" % cmd)
