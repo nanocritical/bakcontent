@@ -8,6 +8,8 @@ import errno
 import subprocess
 from common import *
 
+NPROCS = 4
+
 def remove_nobakcontent_meta_dir(histdir, root):
     try:
         mfn = os.path.join(histdir, root)
@@ -82,7 +84,7 @@ def main() :
         procs = [subprocess.Popen(
             "bakcontent-do-files %d %s %s %s" % (worker_id, bakdir, cmd, ' '.join(further_args)), \
                     close_fds=True, shell=True, stdin=subprocess.PIPE, bufsize=8192) \
-                    for worker_id in range(4)]
+                    for worker_id in range(NPROCS)]
         current = 1 % len(procs)  # worker 0 may have something special to do first.
 
     for pr in procs:
