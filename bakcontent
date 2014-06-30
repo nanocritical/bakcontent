@@ -146,11 +146,11 @@ def store_add(bakdir, args):
     argparser = argparse.ArgumentParser(prog="%s store add" % sys.argv[0])
     argparser.add_argument('name',
             help='store name')
-    argparser.add_argument('spec',
+    argparser.add_argument('spec', nargs='+',
             help='store specification (path for local, s3://, ssh://)')
     cmdargs = argparser.parse_args(args)
 
-    store = Store(bakdir, cmdargs.name, cmdargs.spec)
+    store = Store(bakdir, cmdargs.name, ' '.join(cmdargs.spec))
     store.add()
 
 def store_rm(bakdir, args):
