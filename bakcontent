@@ -8,6 +8,9 @@ import argparse
 import glob
 from common import *
 
+assert os.path.join('/absolute', '/absolute2/b/c/d') == '/absolute/absolute2/b/c/d'
+assert os.path.join('relative', '/absolute', '/absolute2/b/c/d') == 'relative/absolute/absolute2/b/c/d'
+
 # bakcontent-store-server: Store (server)
 # - After transfer, check FRESH files have correct md5. Move to correct md5 name to
 # FINAL store. It's not an error when it happens on freshly transferred files,
