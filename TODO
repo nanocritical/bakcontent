@@ -1,3 +1,12 @@
+BUGS
+
+- Apparently, cannot wait(2) on a process owned by a different group than the
+  current's user main group, even if the user is part of said group. Or at
+  least that's what it looks like. Review the idea of changing permissions in
+  bakcontent-do.
+
+
+
 - Assume I/O bandwidth bound, only one process?
 
 Snapshot
@@ -9,6 +18,11 @@ Snapshot
   exist in the store.
 
 Store
+
+- S3: We want to sync the same structure as a local repo, exactly. But we want
+  to be able to do that even if there is no local repo (because we may not have
+  the disk space for it). We would just need temporary disk space for the 'git
+  clone -l' (to 'git gc' it and avoid races).
 
 - chmod -w on copy of content
 
