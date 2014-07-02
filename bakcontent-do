@@ -49,6 +49,37 @@ def remove_extra_meta_files(histdir, root, files, dirs):
             else:
                 raise e
 
+def queue_files(q, procs, current, root, files):
+    for f in files:
+        if root is not None:
+            f = os.path.join(root, f)
+        q.append(f)
+
+        if len(q) >= 16:
+            pr = procs[current]
+            current = (current + 1) % len(procs)
+
+            pr.stdin.write('\n'.join(q) + '\n')
+            q = []
+    return q, current
+
+def isolate_directories(root, mixed_set):
+    dirs = set()
+    for f in mixed_set:
+        if root is not None:
+            f = os.path.join(root, f)
+        if os.path.isdir(f):
+            mixed_set.remove(f)
+            dirs.add(f)
+    return mixed_set, dirs
+
+def find_all_files(d):
+    r = []
+    for root, _, files in os.walk(d):
+        for f in files:
+            r.append(os.path.join(root, f))
+    return r
+
 def main() :
     if len(sys.argv) < 3:
         eprint("Usage: %s <.bakcontent> <cmd> [args...]" % sys.argv[0])
@@ -106,18 +137,20 @@ def main() :
             except ValueError:
                 pass
 
-            for f in files:
-                f = os.path.join(root, f)
-                fns.append(f)
+            fns, current = queue_files(fns, procs, current, root, files)
 
-                if len(fns) >= 16:
-                    pr = procs[current]
-                    current = (current + 1) % len(procs)
+            if cmd == 'diff':
+                only_hfiles = set(os.listdir(os.path.join(histdir, root)))
+                only_hfiles -= set(files)
+                if root == '.':
+                    only_hfiles.discard('.git')
+                only_hfiles, only_hdir = isolate_directories(root, only_hfiles)
+                fns, current = queue_files(fns, procs, current, root, only_hfiles)
+                for d in only_hdir:
+                    fns, current = queue_files(fns, procs, current, None,
+                            find_all_files(os.path.join(root, d)))
 
-                    pr.stdin.write('\n'.join(fns) + '\n')
-                    fns = []
-
-            if cmd == 'snapshot':
+            elif cmd == 'snapshot':
                 remove_extra_meta_files(histdir, root, files, dirs)
 
     if len(fns) > 0:
@@ -154,6 +187,8 @@ def main() :
                 exit(e)
 
     elif cmd == 'store-sync':
+        pass
+    elif cmd == 'diff':
         pass
     else:
         eprint("Error: invalid command '%s'" % cmd)

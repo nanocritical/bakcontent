@@ -76,7 +76,7 @@ def meta_parse(m):
         meta['sha512'] = lines[0].strip()
         f = lines[1].split()
         if f[0] != 'v1':
-            eprint("Error: Unsupport meta format version '%s'" % f[1])
+            eprint("Error: Unsupported meta format version '%s'" % f[1])
         meta['st_size'] = long(f[1])
         meta['st_mode'] = long(f[2])
         meta['st_uid'] = long(f[3])
@@ -89,7 +89,10 @@ def meta_parse(m):
     except ValueError, e:
         raise IgnoredException()
 
+SAME, NEW, MISSING, CHANGED = range(4)
+
 def try_lazy_sha512(histdir, fn, st=None):
+    assume = NEW
     mfn = meta_fn(histdir, fn)
     try:
         with open(mfn) as f:
@@ -97,30 +100,34 @@ def try_lazy_sha512(histdir, fn, st=None):
 
         if st is None:
             st = os.lstat(fn)
+            assume = CHANGED
         if st.st_size == meta['st_size'] \
                 and round(st.st_mtime, 6) == meta['st_mtime']:
-            return meta['sha512']
+            return meta['sha512'], SAME
     except EnvironmentError, e:
         pass
     except IgnoredException, ignore:
         # e.g. format error, corrupted file.
         pass
 
-    return None
+    return None, assume
 
 def lazy_sha512(histdir, fn, st=None):
-    maybe_sha512 = try_lazy_sha512(histdir, fn, st)
+    maybe_sha512, changed = try_lazy_sha512(histdir, fn, st)
     if maybe_sha512 is not None:
-        return maybe_sha512
+        return maybe_sha512, changed
 
-    if st is None:
-        st = os.lstat(fn)
-    return compute_sha512(st, fn)
+    try:
+        if st is None:
+            st = os.lstat(fn)
+        return compute_sha512(st, fn), changed
+    except EnvironmentError, e:
+        return None, MISSING
 
 def snapshot_one(histdir, fn):
     try:
         st = os.lstat(fn)
-        sha512 = lazy_sha512(histdir, fn, st=st)
+        sha512, _ = lazy_sha512(histdir, fn, st=st)
 
         mfn = meta_fn(histdir, fn)
         meta_write_if_necessary(histdir, mfn, sha512, st)
@@ -130,8 +137,24 @@ def snapshot_one(histdir, fn):
 
 def store_one(store, histdir, fn):
     try:
-        maybe_sha512 = try_lazy_sha512(histdir, fn)
+        maybe_sha512, _ = try_lazy_sha512(histdir, fn)
         store.archive(fn, maybe_sha512)
+    except EnvironmentError, e:
+        # Skip.
+        pass
+
+def diff_one(histdir, fn):
+    try:
+        sha512, changed = lazy_sha512(histdir, fn)
+        if changed == SAME:
+            pass
+        elif changed == NEW:
+            print ' +', fn
+        elif changed == CHANGED:
+            print '-+', fn
+        elif changed == MISSING:
+            print '- ', fn
+
     except EnvironmentError, e:
         # Skip.
         pass
@@ -166,6 +189,10 @@ def main():
 
         for fn in sys.stdin:
             store_one(store, histdir, fn.rstrip())
+
+    elif cmd == 'diff':
+        for fn in sys.stdin:
+            diff_one(histdir, fn.rstrip())
 
     else:
         eprint("Invalid command '%s'" % cmd)
