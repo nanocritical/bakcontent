@@ -146,6 +146,7 @@ def store_one(store, histdir, fn):
 def diff_one(histdir, fn):
     try:
         sha512, changed = lazy_sha512(histdir, fn)
+        fn = os.path.normpath(fn)
         if changed == SAME:
             pass
         elif changed == NEW:

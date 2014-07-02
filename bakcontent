@@ -245,7 +245,7 @@ def archive(args):
 def diff(args):
     argparser = argparse.ArgumentParser(prog="%s diff" % sys.argv[0])
     args_default(argparser)
-    argparser.add_argument('path', nargs='?', default='',
+    argparser.add_argument('path', nargs='?', default='.',
             help='restrict to path')
     cmdargs = argparser.parse_args(args)
 

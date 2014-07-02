@@ -13,10 +13,23 @@ bakcontent snapshot
 echo 4 > c
 echo 5 > d
 rm a
-cmp <(echo -e " + ./d\n-+ ./c\n-  ./a") <(bakcontent diff)
+diff -u <(echo -e " + d\n-+ c\n-  a") <(bakcontent diff)
 
 bakcontent snapshot
+diff -u <(cat /dev/null) <(bakcontent diff)
 
-cmp <(cat /dev/null) <(bakcontent diff)
+mkdir e
+echo 6 > e/f
+echo 7 > a
+diff -u <(echo -e " + a\n + e/f") <(bakcontent diff)
+diff -u <(echo -e " + e/f") <(bakcontent diff e)
+
+bakcontent snapshot
+diff -u <(cat /dev/null) <(bakcontent diff)
+
+rm -r e
+diff -u <(echo -e "-  e/f") <(bakcontent diff)
+bakcontent snapshot
+diff -u <(cat /dev/null) <(bakcontent diff)
 
 teardown
