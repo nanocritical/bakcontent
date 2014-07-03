@@ -132,6 +132,9 @@ def main() :
     elif cmd == 'diff':
         if len(further_args) > 0:
             path_base = further_args[0]
+    elif cmd == 'checkout':
+        if len(further_args) > 0:
+            path_base = further_args[0]
 
     # Make sure the subprocesses run in 'rootdir'
     with pushdir(rootdir):
@@ -147,8 +150,12 @@ def main() :
             eprint("subprocess bakcontent-do-files failed with '%s'" % e)
             exit(e)
 
+    fns = []
+    if not os.path.isdir(path_base):
+        fns.append(path_base)
+        # os.walk will do nothing when not on a dir.
+
     with pushdir(rootdir):
-        fns = []
         for root, dirs, files in os.walk(path_base):
             if os.path.exists(os.path.join(root, '.nobakcontent')):
                 del dirs[:]
@@ -162,7 +169,7 @@ def main() :
 
             fns, current = queue_files(fns, procs, current, root, files)
 
-            if cmd == 'diff':
+            if cmd == 'diff' or cmd == 'checkout':
                 histdir_root = os.path.relpath(os.path.join(histdir, root))
                 only_hfiles = set(try_listdir(histdir_root))
                 only_hfiles -= set(files)
@@ -211,6 +218,8 @@ def main() :
     elif cmd == 'store-sync':
         pass
     elif cmd == 'diff':
+        pass
+    elif cmd == 'checkout':
         pass
     else:
         eprint("Error: invalid command '%s'" % cmd)

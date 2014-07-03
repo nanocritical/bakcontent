@@ -49,6 +49,8 @@ def eprint(*args):
     print>>sys.stderr, ' '.join(args)
 
 def trymakedirs(dn):
+    if dn == '':
+        return
     try:
         os.makedirs(dn)
     except OSError, e:
@@ -92,6 +94,10 @@ def shell(*args):
 
 def hist_store_path(bakdir):
     return os.path.join('histories', socket.gethostname(), os.path.abspath(bakdir))
+
+def data_path(store_spec, sha512):
+    prefix = sha512[0:3]
+    return os.path.join(store_spec, 'data', prefix, sha512)
 
 class Store(object):
     LOCAL, SSH, S3 = range(3)
@@ -148,8 +154,7 @@ class Store(object):
         # None), but always store under real, computed-during-copy SHA-512 to
         # work in the presence of races with concurrent writers to 'fn'.
         if maybe_sha512 is not None:
-            prefix = maybe_sha512[0:3]
-            dstfn = os.path.join(self.spec, 'data', prefix, maybe_sha512)
+            dstfn = data_path(self.spec, maybe_sha512)
             if os.path.exists(dstfn):
                 return
 
@@ -177,8 +182,7 @@ class Store(object):
             finally:
                 out.close()
 
-            prefix = sha512[0:3]
-            dstfn = os.path.join(self.spec, 'data', prefix, sha512)
+            dstfn = data_path(self.spec, sha512)
             if not os.path.exists(dstfn):
                 trymakedirs(os.path.dirname(dstfn))
                 os.rename(tmpfn, dstfn)

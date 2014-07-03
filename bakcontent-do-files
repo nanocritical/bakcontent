@@ -89,45 +89,49 @@ def meta_parse(m):
     except ValueError, e:
         raise IgnoredException()
 
-SAME, NEW, MISSING, CHANGED = range(4)
+SAME, NEW, MISSING, CHANGED, MAYBE_CHANGED = range(5)
 
 def try_lazy_sha512(histdir, fn, st=None):
     assume = NEW
+    cached_sha512 = None
     mfn = meta_fn(histdir, fn)
     try:
         with open(mfn) as f:
             meta = meta_parse(f.read())
+            cached_sha512 = meta['sha512']
 
         if st is None:
             st = os.lstat(fn)
             assume = CHANGED
-        if st.st_size == meta['st_size'] \
-                and round(st.st_mtime, 6) == meta['st_mtime']:
-            return meta['sha512'], SAME
+        if st.st_size == meta['st_size']:
+            if round(st.st_mtime, 6) == meta['st_mtime']:
+                return cached_sha512, SAME, cached_sha512
+            else:
+                return None, MAYBE_CHANGED, cached_sha512
     except EnvironmentError, e:
         pass
     except IgnoredException, ignore:
         # e.g. format error, corrupted file.
         pass
 
-    return None, assume
+    return None, assume, cached_sha512
 
 def lazy_sha512(histdir, fn, st=None):
-    maybe_sha512, changed = try_lazy_sha512(histdir, fn, st)
+    maybe_sha512, changed, cached_sha512 = try_lazy_sha512(histdir, fn, st)
     if maybe_sha512 is not None:
-        return maybe_sha512, changed
+        return maybe_sha512, changed, cached_sha512
 
     try:
         if st is None:
             st = os.lstat(fn)
-        return compute_sha512(st, fn), changed
+        return compute_sha512(st, fn), changed, cached_sha512
     except EnvironmentError, e:
-        return None, MISSING
+        return None, MISSING, cached_sha512
 
 def snapshot_one(histdir, fn):
     try:
         st = os.lstat(fn)
-        sha512, _ = lazy_sha512(histdir, fn, st=st)
+        sha512, _, _ = lazy_sha512(histdir, fn, st=st)
 
         mfn = meta_fn(histdir, fn)
         meta_write_if_necessary(histdir, mfn, sha512, st)
@@ -137,7 +141,7 @@ def snapshot_one(histdir, fn):
 
 def store_one(store, histdir, fn):
     try:
-        maybe_sha512, _ = try_lazy_sha512(histdir, fn)
+        maybe_sha512, _, _ = try_lazy_sha512(histdir, fn)
         store.archive(fn, maybe_sha512)
     except EnvironmentError, e:
         # Skip.
@@ -145,16 +149,55 @@ def store_one(store, histdir, fn):
 
 def diff_one(histdir, fn):
     try:
-        sha512, changed = lazy_sha512(histdir, fn)
+        sha512, changed, cached_sha512 = lazy_sha512(histdir, fn)
         fn = os.path.normpath(fn)
         if changed == SAME:
             pass
         elif changed == NEW:
-            print ' +', fn
+            print '+', fn
+        elif changed == MAYBE_CHANGED:
+            if sha512 != cached_sha512:
+                print 'M', fn
+            else:
+                pass
         elif changed == CHANGED:
-            print '-+', fn
+            print 'M', fn
         elif changed == MISSING:
-            print '- ', fn
+            print '-', fn
+        else:
+            assert False
+
+    except EnvironmentError, e:
+        # Skip.
+        pass
+
+def checkout_one(repodir, histdir, fn):
+    try:
+        sha512, changed, cached_sha512 = lazy_sha512(histdir, fn)
+        fn = os.path.normpath(fn)
+        if changed == SAME:
+            pass
+        elif changed == NEW:
+            pass
+        elif changed == MAYBE_CHANGED:
+            if sha512 != cached_sha512:
+                print 'M', fn
+            else:
+                pass
+        elif changed == CHANGED:
+            print 'M', fn
+        elif changed == MISSING and cached_sha512 is None:
+            eprint("Unknown path '%s'" % fn)
+        elif changed == MISSING:
+            content_fn = data_path(repodir, cached_sha512)
+            if not os.path.isfile(content_fn):
+                eprint("No data file %s in '%s' for %s" % (cached_sha512, 'default', fn))
+            else:
+                if not os.path.exists(fn):
+                    trymakedirs(os.path.dirname(fn))
+                    shutil.copy2(content_fn, fn)
+                else:
+                    print 'M', fn
 
     except EnvironmentError, e:
         # Skip.
@@ -194,6 +237,11 @@ def main():
     elif cmd == 'diff':
         for fn in sys.stdin:
             diff_one(histdir, fn.rstrip())
+
+    elif cmd == 'checkout':
+        repodir = os.path.join(bakdir, 'default')
+        for fn in sys.stdin:
+            checkout_one(repodir, histdir, fn.rstrip())
 
     else:
         eprint("Invalid command '%s'" % cmd)

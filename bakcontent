@@ -255,6 +255,19 @@ def diff(args):
     if e:
         exit(e)
 
+def checkout(args):
+    argparser = argparse.ArgumentParser(prog="%s diff" % sys.argv[0])
+    args_default(argparser)
+    argparser.add_argument('path', nargs='?', default='.',
+            help='restrict to path')
+    cmdargs = argparser.parse_args(args)
+
+    bakdir = args_parse_dirs(cmdargs)
+    bakdir = os.path.realpath(bakdir)
+    e = shell("bakcontent-do '%s' checkout '%s'" % (bakdir, cmdargs.path))
+    if e:
+        exit(e)
+
 def help(is_error):
     out = sys.stderr if is_error else sys.stdout
     print>>out, "Usage: %s <cmd> [args...]" % sys.argv[0]
@@ -266,6 +279,7 @@ Commands:
     store       Store content
     archive     Combine 'snapshot' and 'store sync'
     diff        Show difference with last snapshot
+    checkout    Restore missing files from last snapshot
 
     (see '%s <cmd> -h' for detailed help on each command)
     """
@@ -293,6 +307,8 @@ def main():
         archive(further_args)
     elif cmd == 'diff':
         diff(further_args)
+    elif cmd == 'checkout':
+        checkout(further_args)
     elif cmd == 'help':
         help(False)
     else:
