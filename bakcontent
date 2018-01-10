@@ -6,7 +6,7 @@ import os.path
 import errno
 import argparse
 import glob
-from common import *
+from bakcontent_common import *
 
 assert os.path.join('/absolute', '/absolute2/b/c/d') == '/absolute/absolute2/b/c/d'
 assert os.path.join('relative', '/absolute', '/absolute2/b/c/d') == 'relative/absolute/absolute2/b/c/d'

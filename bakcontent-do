@@ -6,7 +6,7 @@ import os.path
 import stat
 import errno
 import subprocess
-from common import *
+from bakcontent_common import *
 
 NPROCS = 4
 

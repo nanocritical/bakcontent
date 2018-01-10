@@ -7,7 +7,7 @@ import errno
 import hashlib
 import stat
 import re
-from common import *
+from bakcontent_common import *
 
 def compute_sha512(st, fn):
     h = hashlib.sha512()
