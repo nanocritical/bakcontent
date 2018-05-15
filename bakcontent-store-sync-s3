@@ -2,16 +2,19 @@
 
 set -e
 
-if [ "$#" != 2 ]; then
-  echo "Usage: $0 <store_root> <s3://bucket>"
+if [ "$#" != 3 ]; then
+  echo "Usage: $0 <store_root> <s3://bucket> <limit-rate>"
   exit 1
 fi
 
 root=$1
 bucket=$2
+rate=$3
 cfg=~/.bakcontentrc/s3cfg
 
 s3cmd -c $cfg mb $bucket || true
 
-s3cmd -c $cfg --server-side-encryption --skip-existing \
-  --no-check-md5 --no-preserve --no-delete-removed sync $root/ $bucket
+s3cmd -v -c $cfg --server-side-encryption --skip-existing \
+  --limit-rate=$rate \
+  --no-check-md5 --no-preserve --no-delete-removed \
+  sync $root/ $bucket
